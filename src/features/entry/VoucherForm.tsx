@@ -3,10 +3,10 @@
  * 新規入力ページと、各帳簿からの修正モーダルの両方で使います。
  */
 import { useState, type KeyboardEvent } from "react";
-import { Plus, Trash2, Save, X } from "lucide-react";
+import { Plus, Trash2, Save, X, Lock } from "lucide-react";
 import { ask } from "@tauri-apps/plugin-dialog";
 import { useAppContext } from "../../context/AppContext";
-import { AccountWithSub, AmountInput, DateInput, MemoInput, TaxSelect } from "../../components/Inputs";
+import { CounterpartyField, AccountWithSub, AmountInput, DateInput, MemoInput, TaxSelect } from "../../components/Inputs";
 import { checkVoucher, emptyRow, rowsToLines } from "../../lib/accounting";
 import { enterToNext, isComposing } from "../../lib/keyboard";
 import { yen } from "../../lib/format";
@@ -18,6 +18,7 @@ interface Props {
   entryId?: number;
   initialDate: string;
   initialRows?: VoucherRow[];
+  initialCounterpartyId?: number | null;
   onSaved?: (date: string) => void;
   onDeleted?: () => void;
   onCancel?: () => void;
@@ -30,14 +31,19 @@ const padRows = (rows: VoucherRow[]) => {
   return out;
 };
 
-export const VoucherForm = ({ entryId, initialDate, initialRows, onSaved, onDeleted, onCancel }: Props) => {
-  const { db, year, bump, strict } = useAppContext();
+export const VoucherForm = ({ entryId, initialDate, initialRows, initialCounterpartyId = null, onSaved, onDeleted, onCancel }: Props) => {
+  const { db, year, bump, strict, isDateClosed } = useAppContext();
   const toast = useToast();
   const [date, setDate] = useState(initialDate);
   const [rows, setRows] = useState<VoucherRow[]>(padRows(initialRows ?? []));
   const [errors, setErrors] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [reason, setReason] = useState("");
+  const [counterpartyId, setCounterpartyId] = useState<number | null>(initialCounterpartyId);
+  const [cpUnknown, setCpUnknown] = useState(false);
+
+  // 締め済みの年度の仕訳は、登録・訂正・削除できない（訂正で締め済みの年度へ動かすのも不可）
+  const locked = isDateClosed(date) || (!!entryId && isDateClosed(initialDate));
 
   const check = checkVoucher(rows);
   const diff = check.debitTotal - check.creditTotal;
@@ -65,17 +71,20 @@ export const VoucherForm = ({ entryId, initialDate, initialRows, onSaved, onDele
   const removeRow = (i: number) => setRows((rs) => padRows(rs.filter((_, j) => j !== i)));
 
   const submit = async () => {
+    if (locked) return;
     const c = checkVoucher(rows);
-    if (c.errors.length) {
-      setErrors(c.errors);
+    const errs = [...c.errors];
+    if (cpUnknown) errs.push("取引先が一覧にありません。「取引先に追加」で登録するか、欄を空にしてください");
+    if (errs.length) {
+      setErrors(errs);
       return;
     }
     setErrors([]);
     setSaving(true);
     try {
       const lines = rowsToLines(rows);
-      if (entryId) await repo.updateEntry(db, entryId, date, lines, reason);
-      else await repo.createEntry(db, date, lines);
+      if (entryId) await repo.updateEntry(db, entryId, date, lines, reason, counterpartyId);
+      else await repo.createEntry(db, date, lines, counterpartyId);
       bump();
       toast(entryId ? "仕訳を更新しました" : "仕訳を登録しました");
       if (!entryId) setRows(padRows([]));
@@ -89,7 +98,7 @@ export const VoucherForm = ({ entryId, initialDate, initialRows, onSaved, onDele
   };
 
   const remove = async () => {
-    if (!entryId) return;
+    if (!entryId || locked) return;
     const ok = await ask(
       strict
         ? "この仕訳を削除します。帳簿や集計からは外れますが、削除した事実と内容は「訂正・削除履歴」に残ります。"
@@ -97,7 +106,12 @@ export const VoucherForm = ({ entryId, initialDate, initialRows, onSaved, onDele
       { title: "仕訳の削除", kind: "warning", okLabel: "削除", cancelLabel: "やめる" },
     );
     if (!ok) return;
-    await repo.deleteEntry(db, entryId, reason);
+    try {
+      await repo.deleteEntry(db, entryId, reason);
+    } catch (e) {
+      toast(`削除できませんでした：${String(e)}`, "error");
+      return;
+    }
     bump();
     toast("仕訳を削除しました");
     onDeleted?.();
@@ -121,6 +135,10 @@ export const VoucherForm = ({ entryId, initialDate, initialRows, onSaved, onDele
           <DateInput value={date} onChange={setDate} year={year} onKeyDown={nav} autoFocus={!entryId} aria-label="日付" />
         </label>
         <span className="voucher-year">{year}年</span>
+        <label className="field-inline">
+          <span>取引先</span>
+          <CounterpartyField value={counterpartyId} onChange={setCounterpartyId} onUnknown={setCpUnknown} onKeyDown={nav} aria-label="取引先" />
+        </label>
         {entryId && <span className="voucher-no">伝票 No.{entryId}</span>}
       </div>
 
@@ -200,18 +218,24 @@ export const VoucherForm = ({ entryId, initialDate, initialRows, onSaved, onDele
         </ul>
       )}
 
+      {locked && (
+        <p className="closed-note" role="status">
+          <Lock size={14} /> 締め済みの年度の仕訳は、登録・訂正・削除できません。変更するには、事業者設定で締めを解除してください。
+        </p>
+      )}
+
       <div className="voucher-actions">
         <button className="btn ghost" onClick={() => setRows((rs) => [...rs, emptyRow()])}>
           <Plus size={16} /> 行を追加
         </button>
         <div className="spacer" />
         {entryId && (
-          <button className="btn danger-ghost" onClick={remove}>
+          <button className="btn danger-ghost" onClick={remove} disabled={locked}>
             <Trash2 size={16} /> 削除
           </button>
         )}
         {onCancel && <button className="btn ghost" onClick={onCancel}>閉じる</button>}
-        <button className="btn primary" onClick={submit} disabled={saving}>
+        <button className="btn primary" onClick={submit} disabled={saving || locked}>
           <Save size={16} /> {entryId ? "更新する" : "登録する"}
           <kbd>⌘↵</kbd>
         </button>

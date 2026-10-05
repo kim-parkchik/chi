@@ -22,6 +22,8 @@ export interface FlatLine {
   memo: string;
   is_deleted?: number;
   revision?: number;
+  /** 仕訳の取引先（任意） */
+  counterparty_id?: number | null;
 }
 
 export type AccountMap = Map<number, Account>;

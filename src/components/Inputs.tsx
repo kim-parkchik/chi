@@ -7,6 +7,8 @@ import type { Account } from "../lib/types";
 import { parseAmount, parseDateInput, shortDate, toHalfWidth } from "../lib/format";
 import { useAppContext } from "../context/AppContext";
 import { TAX_CODES, TAX_DISABLED_NOTE } from "../constants/tax";
+import { findCounterparty, normName, validateCounterparty } from "../lib/counterparty";
+import * as repo from "../db/repo";
 
 type NavProps = {
   onKeyDown?: (e: KeyboardEvent<HTMLInputElement>) => void;
@@ -188,6 +190,51 @@ export const DateInput = ({ value, onChange, year, ...rest }: DateInputProps) =>
   );
 };
 
+/**
+ * 年をまたいでよい日付（証憑の取引年月日など）。
+ * 2025/12/20・20251220 のように年まで打てる。年を省くと表示中の年度
+ */
+export const FullDateInput = ({ value, onChange, year, ...rest }: DateInputProps) => {
+  const show = (iso: string) => (iso ? iso.replace(/-/g, "/") : "");
+  const [text, setText] = useState(show(value));
+  const [invalid, setInvalid] = useState(false);
+
+  useEffect(() => {
+    setText(show(value));
+    setInvalid(false);
+  }, [value]);
+
+  const commit = () => {
+    if (!text.trim()) {
+      setInvalid(false);
+      if (value) onChange("");
+      return;
+    }
+    const iso = parseDateInput(text, year, Number(value.slice(5, 7)) || 1);
+    if (iso) {
+      setInvalid(false);
+      setText(show(iso));
+      if (iso !== value) onChange(iso);
+    } else {
+      setInvalid(true);
+    }
+  };
+
+  return (
+    <input
+      {...rest}
+      data-nav
+      className={`input full-date-input${invalid ? " invalid" : ""}`}
+      value={text}
+      placeholder="2026/04/15"
+      title="2026/4/15・20260415 の形。年を省くと表示中の年度になります"
+      onFocus={(e) => e.currentTarget.select()}
+      onChange={(e) => setText(e.target.value)}
+      onBlur={commit}
+    />
+  );
+};
+
 // ────────────────────────────────────────────
 // 摘要（過去の入力から候補を出す）
 // ────────────────────────────────────────────
@@ -297,5 +344,70 @@ export const AccountWithSub = ({
       <AccountInput value={accountId} onChange={onAccount} onKeyDown={onKeyDown} aria-label={label} accounts={accounts} />
       {hasSubs && <SubSelect accountId={accountId} value={subId} onChange={onSub} onKeyDown={onKeyDown} aria-label={`${label}の補助科目`} />}
     </div>
+  );
+};
+
+// ────────────────────────────────────────────
+// 取引先（任意）。一覧から選ぶ。一覧に無い名前はその場で追加できる
+// ────────────────────────────────────────────
+interface CounterpartyFieldProps extends NavProps {
+  value: number | null;
+  onChange: (id: number | null) => void;
+  /** 一覧に無い名前が入っているか（登録前の確認用） */
+  onUnknown?: (unknown: boolean) => void;
+}
+
+export const CounterpartyField = ({ value, onChange, onUnknown, ...rest }: CounterpartyFieldProps) => {
+  const { db, counterparties, reloadCounterparties } = useAppContext();
+  const listId = useId();
+  const current = counterparties.find((c) => c.id === value);
+  const [text, setText] = useState(current?.name ?? "");
+  const [adding, setAdding] = useState(false);
+
+  useEffect(() => {
+    if (current && normName(current.name) !== normName(text)) setText(current.name);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value, current?.name]);
+
+  const unknown = text.trim() !== "" && !findCounterparty(counterparties, text);
+  useEffect(() => {
+    onUnknown?.(unknown);
+  }, [unknown, onUnknown]);
+
+  const add = async () => {
+    const err = validateCounterparty(counterparties, { name: text, kana: "", invoice_no: "", memo: "" });
+    if (err) return;
+    setAdding(true);
+    try {
+      const id = await repo.createCounterparty(db, { name: text, kana: "", invoice_no: "", memo: "" });
+      await reloadCounterparties();
+      onChange(id);
+    } finally {
+      setAdding(false);
+    }
+  };
+
+  return (
+    <span className="cp-field">
+      <input
+        {...rest}
+        data-nav
+        className={`input cp-input${unknown ? " invalid" : ""}`}
+        list={listId}
+        value={text}
+        placeholder="取引先（任意）"
+        title={unknown ? "取引先一覧にない名前です。右の「追加」で登録できます" : undefined}
+        onChange={(e) => {
+          setText(e.target.value);
+          onChange(findCounterparty(counterparties, e.target.value)?.id ?? null);
+        }}
+      />
+      <datalist id={listId}>
+        {counterparties.filter((c) => c.is_active).map((c) => <option key={c.id} value={c.name}>{c.invoice_no}</option>)}
+      </datalist>
+      {unknown && (
+        <button type="button" className="btn ghost sm" onClick={add} disabled={adding} tabIndex={-1}>＋ 取引先に追加</button>
+      )}
+    </span>
   );
 };

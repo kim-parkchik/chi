@@ -27,7 +27,7 @@ const columnLabels = (code: string, normal: "debit" | "credit") => {
 };
 
 export const CashBookPage = () => {
-  const { db, year, accounts, activeAccounts, accountMap, bump, activeSubsOf, labelOf, subMap, homeUseOf } = useAppContext();
+  const { db, year, accounts, activeAccounts, accountMap, bump, activeSubsOf, labelOf, subMap, homeUseOf, isDateClosed } = useAppContext();
   const { lines, opening, subOpening, loading } = useYearData();
   const toast = useToast();
 
@@ -87,6 +87,7 @@ export const CashBookPage = () => {
 
   const save = async () => {
     setError("");
+    if (isDateClosed(date)) return setError("締め済みの年度には登録できません（事業者設定で締めを解除してください）");
     if (!counterId) return setError("相手科目を選んでください");
     if (counterId === accountId) return setError("相手科目に同じ科目は使えません");
     if ((dr ?? 0) > 0 && (cr ?? 0) > 0) return setError(`${labels.dr}と${labels.cr}はどちらか一方に入力してください`);
@@ -238,7 +239,7 @@ export const CashBookPage = () => {
                 <td><AmountInput value={dr} onChange={setDr} onKeyDown={nav} aria-label={labels.dr} /></td>
                 <td><AmountInput value={cr} onChange={setCr} onKeyDown={nav} aria-label={labels.cr} /></td>
                 <td>
-                  <button className="btn primary block" onClick={save}>
+                  <button className="btn primary block" onClick={save} disabled={isDateClosed(date)} title={isDateClosed(date) ? "締め済みの年度です" : undefined}>
                     <CornerDownLeft size={15} /> 登録
                   </button>
                 </td>

@@ -48,6 +48,8 @@ export const EntryHistoryList = ({ records }: { records: HistoryRecord[] }) => {
             <span className={`badge badge-${r.action}`}>{ACTION_LABEL[r.action]}</span>
             <span>第{r.revision}版</span>
             <span className="muted">{r.recorded_at}</span>
+            {r.user_name && <span>操作者：{r.user_name}</span>}
+            {r.snapshot.counterparty && <span>取引先：{r.snapshot.counterparty}</span>}
             {r.reason && <span className="history-reason">理由：{r.reason}</span>}
           </div>
           <SnapshotTable snap={r.snapshot} compare={r.action === "update" ? asc[i - 1]?.snapshot : undefined} />

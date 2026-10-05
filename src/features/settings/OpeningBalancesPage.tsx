@@ -18,7 +18,7 @@ import { subKey, type Account, type OpeningBalances, type SubOpeningBalances } f
 import * as repo from "../../db/repo";
 
 export const OpeningBalancesPage = () => {
-  const { db, year, accounts, subAccounts, bump } = useAppContext();
+  const { db, year, accounts, subAccounts, bump, isClosed } = useAppContext();
   const { subOpening, loading } = useYearData();
   const toast = useToast();
   const [values, setValues] = useState<SubOpeningBalances>({});
@@ -118,10 +118,10 @@ export const OpeningBalancesPage = () => {
   return (
     <div className="page">
       <PageHeader title="期首残高" note={`${year}年1月1日時点の残高です。資産の合計と、負債・資本の合計を一致させます。`}>
-        <button className="btn ghost" onClick={fillCapital} disabled={diff.difference === 0}>
+        <button className="btn ghost" onClick={fillCapital} disabled={isClosed || diff.difference === 0}>
           <Calculator size={16} /> 差額を元入金にする
         </button>
-        <button className="btn primary" onClick={save} disabled={!dirty}>
+        <button className="btn primary" onClick={save} disabled={isClosed || !dirty}>
           <Save size={16} /> 保存する
         </button>
       </PageHeader>

@@ -5,7 +5,7 @@
  */
 import { useState } from "react";
 import { ShieldCheck, NotebookPen } from "lucide-react";
-import type Database from "@tauri-apps/plugin-sql";
+import type Database from "../../db/connection";
 import { Logo } from "./StartScreen";
 import { SettingsForm } from "../settings/BusinessSettingsPage";
 import type { EBookMode, Settings } from "../../lib/types";
@@ -30,7 +30,10 @@ export const SetupScreen = ({ db, settings, onDone, onBack }: Props) => {
 
   const finish = async (s: Settings) => {
     if (needsInfo) await repo.saveSettings(db, s);
-    if (needsMode) await repo.setEBookMode(db, mode);
+    if (needsMode) {
+      await repo.setEBookMode(db, mode);
+      await repo.initChain(db); // 厳密モードなら、ここから記録の連鎖を始める
+    }
     onDone(await repo.getSettings(db));
   };
 

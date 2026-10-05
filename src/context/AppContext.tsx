@@ -1,7 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import type Database from "@tauri-apps/plugin-sql";
-import type { Account, HomeUseRate, OpeningBalances, Settings, SubAccount, SubOpeningBalances } from "../lib/types";
+import type Database from "../db/connection";
+import type { Account, Counterparty, User, FiscalClosing, HomeUseRate, OpeningBalances, Settings, SubAccount, SubOpeningBalances } from "../lib/types";
 import { toAccountMap, yearEnd, yearStart, type AccountMap, type FlatLine } from "../lib/accounting";
+import { closingOf, expectedNextOpening, openingMismatches, type OpeningMismatch } from "../lib/closing";
 import * as repo from "../db/repo";
 
 interface AppContextValue {
@@ -27,6 +28,20 @@ interface AppContextValue {
   /** 科目の按分設定（按分しない科目は undefined） */
   homeUseOf: (accountId: number | null) => HomeUseRate | undefined;
   reloadHomeUse: () => Promise<void>;
+  /** 操作している人 */
+  currentUser: User;
+  /** ユーザー（全員。非表示も含む） */
+  users: User[];
+  reloadUsers: () => Promise<void>;
+  /** 取引先（全件。非表示のものも含む） */
+  counterparties: Counterparty[];
+  reloadCounterparties: () => Promise<void>;
+  /** 締め済みの年度 */
+  closings: FiscalClosing[];
+  /** 表示中の年度が締め済みか */
+  isClosed: boolean;
+  /** その日付が締め済みの年度に入っているか */
+  isDateClosed: (date: string) => boolean;
   /** 厳密モード（電子帳簿保存法対応）か */
   strict: boolean;
   /** データ更新の合図。仕訳を保存したら bump() を呼ぶ */
@@ -50,10 +65,18 @@ interface Props {
   initialSettings: Settings;
   initialAccounts: Account[];
   initialSubs: SubAccount[];
+  user: User;
   children: ReactNode;
 }
 
-export const AppProvider = ({ db, filePath, initialSettings, initialAccounts, initialSubs, children }: Props) => {
+export const AppProvider = ({ db, filePath, initialSettings, initialAccounts, initialSubs, user, children }: Props) => {
+  const [users, setUsers] = useState<User[]>([user]);
+  const reloadUsers = useCallback(async () => setUsers(await repo.getUsers(db)), [db]);
+  useEffect(() => {
+    reloadUsers().catch(console.error);
+  }, [reloadUsers]);
+  // 名前を変えたときなどは一覧の方が新しい
+  const currentUser = users.find((u) => u.id === user.id) ?? user;
   const [settings, setSettings] = useState(initialSettings);
   const [accounts, setAccounts] = useState(initialAccounts);
   const [subAccounts, setSubAccounts] = useState(initialSubs);
@@ -80,6 +103,18 @@ export const AppProvider = ({ db, filePath, initialSettings, initialAccounts, in
   useEffect(() => {
     reloadHomeUse().catch(console.error);
   }, [reloadHomeUse]);
+
+  const [counterparties, setCounterparties] = useState<Counterparty[]>([]);
+  const reloadCounterparties = useCallback(async () => setCounterparties(await repo.getCounterparties(db)), [db]);
+  useEffect(() => {
+    reloadCounterparties().catch(console.error);
+  }, [reloadCounterparties]);
+
+  // 締めは繰越・解除のたびに変わるので、データ更新の合図（bump）で読み直す
+  const [closings, setClosings] = useState<FiscalClosing[]>([]);
+  useEffect(() => {
+    repo.getClosings(db).then(setClosings).catch(console.error);
+  }, [db, dataVersion]);
 
   useEffect(() => {
     repo.getMemoSuggestions(db).then(setMemoSuggestions).catch(console.error);
@@ -109,12 +144,20 @@ export const AppProvider = ({ db, filePath, initialSettings, initialAccounts, in
       homeUseRates,
       homeUseOf: (id) => (id ? homeUseRates.find((r) => r.account_id === id && r.rate < 100) : undefined),
       reloadHomeUse,
+      currentUser,
+      users,
+      reloadUsers,
+      counterparties,
+      reloadCounterparties,
+      closings,
+      isClosed: closings.some((c) => c.fiscal_year === settings.fiscal_year),
+      isDateClosed: (date) => !!closingOf(closings, date),
       dataVersion,
       bump,
       reloadSettings,
       reloadAccounts,
     };
-  }, [db, filePath, settings, accounts, subAccounts, memoSuggestions, homeUseRates, reloadHomeUse, dataVersion, bump, reloadSettings, reloadAccounts]);
+  }, [db, filePath, settings, accounts, subAccounts, memoSuggestions, homeUseRates, reloadHomeUse, currentUser, users, reloadUsers, counterparties, reloadCounterparties, closings, dataVersion, bump, reloadSettings, reloadAccounts]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 };
@@ -145,4 +188,48 @@ export const useYearData = () => {
   }, [db, year, dataVersion]);
 
   return { lines, opening, subOpening, loading };
+};
+
+export interface CarryForwardCheck {
+  /** 繰越元の年度 */
+  from: number;
+  /** 繰越先の年度 */
+  to: number;
+  mismatches: OpeningMismatch[];
+}
+
+/**
+ * 表示中の年度の前後で、期首残高が前年の期末残高（繰越額）とずれていないかを調べる。
+ *  - 前年 → 今年：今年の期首残高が、前年の帳簿を直したあとの繰越額と合っているか
+ *  - 今年 → 翌年：今年の帳簿を直して、翌年の期首残高とずれていないか
+ * 繰越元にデータが無い年度（最初の年度の期首を手入力した場合など）は調べない
+ */
+export const useCarryForwardCheck = () => {
+  const { db, year, accounts, dataVersion } = useAppContext();
+  const [checks, setChecks] = useState<CarryForwardCheck[]>([]);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const out: CarryForwardCheck[] = [];
+      for (const from of [year - 1, year]) {
+        const to = from + 1;
+        if (!(await repo.hasOpening(db, to))) continue;
+        const [lines, op, next] = await Promise.all([
+          repo.getLines(db, yearStart(from), yearEnd(from)),
+          repo.getOpening(db, from),
+          repo.getOpening(db, to),
+        ]);
+        if (lines.length === 0 && Object.keys(op.bySub).length === 0) continue;
+        const mismatches = openingMismatches(expectedNextOpening(accounts, op.byAccount, op.bySub, lines), next.bySub);
+        if (mismatches.length > 0) out.push({ from, to, mismatches });
+      }
+      if (alive) setChecks(out);
+    })().catch(console.error);
+    return () => {
+      alive = false;
+    };
+  }, [db, year, accounts, dataVersion]);
+
+  return checks;
 };

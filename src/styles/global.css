@@ -64,6 +64,7 @@ h1, h2, p { margin: 0; }
 .btn.danger-ghost:hover { background: #fbefef; }
 .btn.lg { height: 44px; padding: 0 20px; font-size: 15px; }
 .btn.block { width: 100%; justify-content: center; }
+.btn.sm { height: 26px; padding: 0 10px; font-size: 12px; }
 .btn kbd { font-family: inherit; font-size: 11px; opacity: .7; margin-left: 4px; }
 
 .icon-btn {
@@ -460,3 +461,70 @@ td.bar-col { display: flex; flex-direction: column; gap: 2px; justify-content: c
 .ledger tr.homeuse-on td:first-child { font-weight: 700; color: var(--accent-dark); }
 .small-btn { height: 28px; padding: 0 10px; font-size: 12.5px; }
 .homeuse-hint { color: #8a5a00; font-weight: 600; }
+
+/* ---------- 年度の締め ---------- */
+.year-notice { display: flex; flex-direction: column; gap: 1px; border-bottom: 1px solid var(--rule); }
+.year-notice-row { display: flex; align-items: center; gap: 8px; padding: 7px 20px; font-size: 13px; }
+.year-notice-row > span { flex: 1; }
+.year-notice-row.closed { background: var(--accent-tint); color: var(--accent); }
+.year-notice-row.warn { background: var(--warn-bg); color: var(--warn-ink); }
+.closing-table td:nth-child(2) { width: 34%; }
+.closing-table td:last-child { width: 1%; white-space: nowrap; text-align: right; }
+.status-closed { display: inline-flex; align-items: center; gap: 4px; color: var(--accent); font-weight: 700; }
+.status-open { color: var(--muted); }
+.closed-note { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-radius: 4px; background: var(--accent-tint); color: var(--accent); font-size: 13px; }
+
+/* ---------- 証憑 ---------- */
+.filter-label { font-size: 12px; color: var(--muted); margin-left: 4px; }
+.filters .full-date-input { width: 110px; height: 30px; }
+.filters .amount-filter { width: 90px; height: 30px; text-align: right; }
+.ellipsis { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 0; }
+.ledger.compact td { padding-top: 4px; padding-bottom: 4px; }
+.ledger tr.match td { background: var(--accent-tint); }
+.sub-h { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; color: var(--accent); margin: 16px 0 8px; }
+.warn-text { color: var(--warn-ink); }
+.file-input { padding: 5px 8px; height: auto; }
+.evidence-detail { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(320px, 1fr); gap: 18px; align-items: start; }
+.evidence-frame { width: 100%; height: calc(100vh - 170px); min-height: 420px; border: 1px solid var(--rule); border-radius: 4px; background: #f4f6f9; }
+.evidence-img-wrap { overflow: auto; display: grid; place-items: start center; }
+.evidence-img-wrap img { max-width: 100%; height: auto; }
+.evidence-side { display: flex; flex-direction: column; min-width: 0; }
+.evidence-kv { grid-template-columns: auto 1fr; margin-top: 0; }
+.evidence-kv dd { font-weight: 600; text-align: left; }
+.evidence-kv dd.num { text-align: left; }
+.evidence-kv .hash { font-family: ui-monospace, Menlo, monospace; font-size: 11px; font-weight: 400; word-break: break-all; color: var(--muted); }
+.evidence-kv .wrap { word-break: break-all; }
+.link-chips { list-style: none; display: flex; flex-wrap: wrap; gap: 6px; padding: 0; margin: 0 0 12px; }
+.link-chips li { display: inline-flex; align-items: center; gap: 2px; border: 1px solid var(--rule); border-radius: 4px; padding: 0 2px 0 4px; }
+.void-form { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; padding: 12px; border: 1px solid #e8c9c9; border-radius: 4px; }
+.void-form .btn { align-self: flex-end; }
+.evidence-history { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; }
+.evidence-history li { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.entry-evidence-head { display: flex; align-items: center; gap: 8px; }
+.entry-evidence-head .sub-h { margin-right: auto; }
+.picker-list { max-height: 60vh; margin-top: 10px; }
+.check-list { margin: 10px 0 0 18px; font-size: 13px; }
+.clip { display: inline-flex; align-items: center; gap: 1px; color: var(--accent); font-size: 11px; font-weight: 700; margin-right: 6px; }
+.evidence-noview { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; color: var(--muted); text-align: center; padding: 24px; font-size: 13px; }
+.evidence-text { margin: 0; padding: 12px; overflow: auto; font-family: ui-monospace, Menlo, monospace; font-size: 12px; line-height: 1.6; white-space: pre; background: #fff; }
+.mono { font-family: ui-monospace, Menlo, monospace; font-size: 12.5px; }
+.cp-field { display: inline-flex; align-items: center; gap: 6px; }
+.cp-input { width: 220px; }
+.cp-tag { display: inline-block; margin-left: 8px; font-size: 11.5px; color: var(--accent); background: var(--accent-tint); border-radius: 3px; padding: 0 6px; }
+.anchor-box { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--rule); border-radius: 4px; background: #fff; }
+.anchor-code { font-family: ui-monospace, Menlo, monospace; font-size: 15px; font-weight: 700; color: var(--accent); letter-spacing: .04em; user-select: all; }
+.anchor-check { display: flex; gap: 8px; }
+.anchor-check .input { flex: 1; }
+.balance-banner { display: flex; align-items: center; gap: 6px; }
+.anchor-cell { display: inline-flex; align-items: center; gap: 4px; }
+.statement-anchor { font-family: ui-monospace, Menlo, monospace; font-size: 10.5px; color: var(--muted); }
+.year-notice-row.danger { background: #fbe9e9; color: var(--cr); }
+.login-card { width: min(440px, 100%); align-items: center; }
+.user-list { list-style: none; padding: 0; margin: 12px 0 0; width: 100%; display: flex; flex-direction: column; gap: 6px; }
+.user-pick { display: flex; align-items: center; gap: 8px; width: 100%; padding: 10px 14px; border: 1px solid var(--rule); border-radius: 6px; background: #fff; cursor: pointer; font-size: 14px; color: var(--ink); text-align: left; }
+.user-pick span { flex: 1; }
+.user-pick:hover, .user-pick.on { border-color: var(--accent); background: var(--accent-tint); }
+.login-form { display: flex; gap: 8px; width: 100%; margin-top: 10px; }
+.login-form .input { flex: 1; }
+.nav-user { display: flex; align-items: center; gap: 6px; padding: 6px 10px; font-size: 12.5px; color: rgba(255,255,255,.8); }
+.nav-user strong { color: #fff; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

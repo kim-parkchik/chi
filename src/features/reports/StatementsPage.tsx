@@ -7,6 +7,7 @@ import { useAppContext, useYearData } from "../../context/AppContext";
 import { PageHeader } from "../../components/PageHeader";
 import { closingBalances, summarizeBalanceSheet, summarizeIncome } from "../../lib/accounting";
 import { yen } from "../../lib/format";
+import * as repo from "../../db/repo";
 import type { Account, FilingType } from "../../lib/types";
 
 /** 青色申告特別控除の上限（目安） */
@@ -22,7 +23,9 @@ const Line = ({ label, value, strong, indent }: { label: string; value: number |
 );
 
 export const StatementsPage = () => {
-  const { year, accounts, settings } = useAppContext();
+  const { year, accounts, settings, closings, strict } = useAppContext();
+  // 締めたときの確認コード（厳密モード）。印刷した決算書が、帳簿ファイルの外の控えになる
+  const closedHead = strict ? closings.find((c) => c.fiscal_year === year)?.chain_head : undefined;
   const { lines, opening } = useYearData();
   const [tab, setTab] = useState<Tab>("pl");
 
@@ -67,6 +70,7 @@ export const StatementsPage = () => {
             {settings.business_name || "（屋号未設定）"}　{settings.owner_name}
             <br />
             {tab === "pl" ? `自 ${year}年1月1日　至 ${year}年12月31日` : `${year}年12月31日 現在`}
+            {closedHead && <><br /><span className="statement-anchor">確認コード {repo.anchorCode(closedHead)}</span></>}
           </p>
         </header>
 

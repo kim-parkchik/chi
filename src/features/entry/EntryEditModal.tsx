@@ -6,6 +6,7 @@ import { useAppContext } from "../../context/AppContext";
 import { linesToRows } from "../../lib/accounting";
 import type { HistoryRecord, JournalEntry } from "../../lib/types";
 import * as repo from "../../db/repo";
+import { EntryEvidenceSection } from "../evidence/EntryEvidenceSection";
 
 /** 既存の仕訳を振替伝票の形で開いて訂正・削除する。下に履歴を表示 */
 export const EntryEditModal = ({ entryId, onClose }: { entryId: number; onClose: () => void }) => {
@@ -32,11 +33,20 @@ export const EntryEditModal = ({ entryId, onClose }: { entryId: number; onClose:
           entryId={entry.id}
           initialDate={entry.date}
           initialRows={linesToRows(entry.lines)}
+          initialCounterpartyId={entry.counterparty_id}
           onSaved={onClose}
           onDeleted={onClose}
           onCancel={onClose}
         />
       )}
+
+      {entry && (entry.created_by_name || entry.updated_by_name) && (
+        <p className="field-note entry-by">
+          登録：{entry.created_by_name ?? "（記録なし）"}（{entry.created_at}）
+          {entry.updated_at !== entry.created_at && <>　最終更新：{entry.updated_by_name ?? "（記録なし）"}（{entry.updated_at}）</>}
+        </p>
+      )}
+      {entry && <EntryEvidenceSection entry={entry} />}
 
       {strict && history.length > 0 && (
         <section className="history-section">

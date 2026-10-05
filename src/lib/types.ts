@@ -48,10 +48,15 @@ export interface JournalEntry {
   id: number;
   date: string; // YYYY-MM-DD
   description: string;
+  /** 取引先（任意） */
+  counterparty_id: number | null;
   revision: number;
   is_deleted: number;
   created_at: string;
   updated_at: string;
+  /** 登録した人・最後に変更した人（ユーザー名。ユーザーの機能を入れる前の仕訳は null） */
+  created_by_name?: string | null;
+  updated_by_name?: string | null;
   lines: JournalLine[];
 }
 
@@ -69,6 +74,8 @@ export interface SnapshotLine {
 /** 履歴に残す仕訳の写し。科目名は記録時点の名前で保存する */
 export interface EntrySnapshot {
   date: string;
+  /** 取引先の名前（記録時点。取引先の機能を入れる前の履歴には無い） */
+  counterparty?: string;
   lines: SnapshotLine[];
 }
 
@@ -80,6 +87,8 @@ export interface HistoryRecord {
   recorded_at: string;
   reason: string;
   snapshot: EntrySnapshot;
+  /** 操作したユーザー */
+  user_name?: string | null;
 }
 
 /** 振替伝票の1行（借方・貸方のペア） */
@@ -121,14 +130,17 @@ export const subKey = (accountId: number, subId: number | null) => `${accountId}
 /** 科目・補助科目・期首残高の変更履歴 */
 export interface MasterHistoryRecord {
   id: number;
-  target_type: "account" | "sub" | "opening" | "homeuse";
+  target_type: "account" | "sub" | "opening" | "homeuse" | "closing" | "counterparty" | "user";
   target_id: number;
-  action: "create" | "rename" | "hide" | "show" | "delete" | "change";
+  /** close / unlock は年度の締め（target_type = closing、target_id = 年度） */
+  action: "create" | "rename" | "hide" | "show" | "delete" | "change" | "close" | "unlock";
   fiscal_year: number;
   label: string;
   old_value: string;
   new_value: string;
   recorded_at: string;
+  /** 操作したユーザー */
+  user_name?: string | null;
 }
 
 /** 家事按分の設定（その年度に有効なもの） */
@@ -140,4 +152,95 @@ export interface HomeUseRate {
   rate: number;
   method: HomeUseMethod;
   basis: string;
+}
+
+/** 証憑 */
+export type EvidenceKind = "electronic" | "scan";
+/** 利用者が入力・訂正できる項目 */
+export interface EvidenceMeta {
+  doc_type: string;
+  /** 取引年月日 */
+  txn_date: string;
+  /** 取引金額（円） */
+  amount: number;
+  /** 取引先 */
+  counterparty: string;
+  memo: string;
+}
+export interface Evidence extends EvidenceMeta {
+  id: number;
+  /** 取引先一覧の取引先（取引先名が一覧の名前と一致したときに入る。任意） */
+  counterparty_id: number | null;
+  kind: EvidenceKind;
+  file_name: string;
+  mime: string;
+  size: number;
+  sha256: string;
+  revision: number;
+  is_void: number;
+  created_at: string;
+  updated_at: string;
+  voided_at: string | null;
+  /** ひも付いている仕訳の伝票番号 */
+  entry_ids: number[];
+}
+/** 証憑の履歴に残す写し */
+export interface EvidenceSnapshot extends EvidenceMeta {
+  kind: EvidenceKind;
+  file_name: string;
+  mime: string;
+  size: number;
+  sha256: string;
+  entry_ids: number[];
+}
+export type EvidenceAction = "create" | "update" | "void" | "link" | "unlink";
+export interface EvidenceHistoryRecord {
+  id: number;
+  evidence_id: number;
+  revision: number;
+  action: EvidenceAction;
+  recorded_at: string;
+  reason: string;
+  snapshot: EvidenceSnapshot;
+  /** 操作したユーザー */
+  user_name?: string | null;
+}
+
+/** 取引先（任意で使う）。仕訳1件に1つ、証憑にも付けられる */
+export interface Counterparty {
+  id: number;
+  name: string;
+  kana: string;
+  /** 適格請求書発行事業者の登録番号（T + 13桁。無ければ空） */
+  invoice_no: string;
+  memo: string;
+  is_active: number;
+}
+
+/** 年度の締め（行があれば締め済み） */
+export interface FiscalClosing {
+  fiscal_year: number;
+  period_start: string;
+  period_end: string;
+  closed_at: string;
+  /** 締めたときの記録の連鎖の先頭（確認コードのもと。厳密モードのみ） */
+  chain_head: string;
+}
+
+/** ユーザー（権限はまだ分けない。誰が操作したかを記録するため） */
+export interface User {
+  id: number;
+  name: string;
+  /** パスワードを設定しているか */
+  has_password: number;
+  is_active: number;
+  created_at: string;
+}
+
+export interface AccessLogRecord {
+  id: number;
+  user_id: number;
+  user_name: string;
+  action: "login" | "logout";
+  recorded_at: string;
 }

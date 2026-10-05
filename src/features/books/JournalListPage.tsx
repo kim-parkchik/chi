@@ -3,7 +3,7 @@
  * すべての仕訳を日付順に表示します。行をクリックすると修正できます。
  */
 import { useEffect, useMemo, useState } from "react";
-import { Download, Search } from "lucide-react";
+import { Download, Paperclip, Search } from "lucide-react";
 import { save } from "@tauri-apps/plugin-dialog";
 import { writeTextFile } from "@tauri-apps/plugin-fs";
 import { useAppContext, useYearData } from "../../context/AppContext";
@@ -24,10 +24,13 @@ interface DisplayRow {
   cr?: FlatLine;
   memo: string;
   deleted: boolean;
+  counterparty: string;
 }
 
 export const JournalListPage = () => {
-  const { db, year, accountMap, activeAccounts, settings, labelOf, subMap, dataVersion, strict } = useAppContext();
+  const { db, year, accountMap, activeAccounts, settings, labelOf, subMap, dataVersion, strict, counterparties } = useAppContext();
+  const cpMap = useMemo(() => new Map(counterparties.map((c) => [c.id, c])), [counterparties]);
+  const [cpId, setCpId] = useState(0);
   const { lines: activeLines } = useYearData();
   const [showDeleted, setShowDeleted] = useState(false);
   const [allLines, setAllLines] = useState<FlatLine[] | null>(null);
@@ -40,6 +43,11 @@ export const JournalListPage = () => {
     repo.getLines(db, yearStart(year), yearEnd(year), true).then(setAllLines).catch(console.error);
   }, [db, year, showDeleted, dataVersion]);
   const lines = allLines ?? activeLines;
+  // 伝票番号 → ひも付いている証憑の件数
+  const [evidenceCounts, setEvidenceCounts] = useState<Map<number, number>>(new Map());
+  useEffect(() => {
+    repo.getEvidenceCounts(db).then(setEvidenceCounts).catch(console.error);
+  }, [db, dataVersion]);
   const toast = useToast();
   const [from, setFrom] = useState(1);
   const [to, setTo] = useState(12);
@@ -57,11 +65,13 @@ export const JournalListPage = () => {
     const out: DisplayRow[] = [];
     for (const [entryId, ls] of grouped) {
       if (accountId && !ls.some((l) => l.account_id === accountId)) continue;
+      if (cpId && ls[0].counterparty_id !== cpId) continue;
+      const counterparty = ls[0].counterparty_id ? cpMap.get(ls[0].counterparty_id)?.name ?? "" : "";
       if (query) {
         const hay = ls
           .map((l) => `${l.memo} ${accountMap.get(l.account_id)?.name ?? ""} ${l.sub_account_id ? subMap.get(l.sub_account_id)?.name ?? "" : ""} ${l.amount}`)
           .join(" ");
-        if (!hay.includes(query)) continue;
+        if (!`${hay} ${counterparty}`.includes(query)) continue;
       }
       // 金額の範囲（仕訳の合計金額で判定）
       const total = ls.filter((l) => l.side === "debit").reduce((t, l) => t + l.amount, 0);
@@ -86,11 +96,12 @@ export const JournalListPage = () => {
           cr: p.cr,
           memo: p.dr?.memo || p.cr?.memo || "",
           deleted: ls[0].is_deleted === 1,
+          counterparty,
         }),
       );
     }
     return out;
-  }, [lines, year, from, to, accountId, q, accountMap, subMap, minAmt, maxAmt]);
+  }, [lines, year, from, to, accountId, q, accountMap, subMap, minAmt, maxAmt, cpId, cpMap]);
 
   const total = rows.filter((r) => !r.deleted).reduce((s, r) => s + (r.dr?.amount ?? 0), 0);
   const entryCount = rows.filter((r) => r.first && !r.deleted).length;
@@ -98,11 +109,12 @@ export const JournalListPage = () => {
 
   const exportCsv = async () => {
     const esc = (s: string | number) => `"${String(s).replace(/"/g, '""')}"`;
-    const header = ["伝票No", "日付", "借方科目", "借方補助", "借方金額", "貸方科目", "貸方補助", "貸方金額", "摘要", "状態"];
+    const header = ["伝票No", "日付", "借方科目", "借方補助", "借方金額", "貸方科目", "貸方補助", "貸方金額", "摘要", "取引先", "登録番号", "状態"];
     const sub = (l?: FlatLine) => (l?.sub_account_id ? subMap.get(l.sub_account_id)?.name ?? "" : "");
     const body = rows.map((r) =>
       [r.entryId, r.date, r.dr ? accountMap.get(r.dr.account_id)?.name ?? "" : "", sub(r.dr), r.dr?.amount ?? "",
-        r.cr ? accountMap.get(r.cr.account_id)?.name ?? "" : "", sub(r.cr), r.cr?.amount ?? "", r.memo, r.deleted ? "削除済み" : ""]
+        r.cr ? accountMap.get(r.cr.account_id)?.name ?? "" : "", sub(r.cr), r.cr?.amount ?? "", r.memo, r.counterparty,
+        r.counterparty ? counterparties.find((c) => c.name === r.counterparty)?.invoice_no ?? "" : "", r.deleted ? "削除済み" : ""]
         .map(esc)
         .join(","),
     );
@@ -134,6 +146,12 @@ export const JournalListPage = () => {
           <option value={0}>すべての科目</option>
           {activeAccounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
         </select>
+        {counterparties.length > 0 && (
+          <select value={cpId} onChange={(e) => setCpId(Number(e.target.value))} aria-label="取引先で絞り込み">
+            <option value={0}>すべての取引先</option>
+            {counterparties.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        )}
         <label className="search">
           <Search size={15} />
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="摘要・科目・取引先で探す" />
@@ -190,7 +208,11 @@ export const JournalListPage = () => {
                   <td className="memo">
                     {r.first && r.deleted && <span className="badge badge-delete">削除済み</span>}
                     {r.first && !r.deleted && (r.dr?.revision ?? r.cr?.revision ?? 1) > 1 && <span className="badge badge-update">訂正あり</span>}
+                    {r.first && evidenceCounts.get(r.entryId) ? (
+                      <span className="clip" title={`証憑 ${evidenceCounts.get(r.entryId)}件`}><Paperclip size={12} />{evidenceCounts.get(r.entryId)}</span>
+                    ) : null}
                     {r.memo}
+                    {r.first && r.counterparty && <span className="cp-tag">{r.counterparty}</span>}
                   </td>
                 </tr>
               ))}

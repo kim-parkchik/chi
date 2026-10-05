@@ -11,15 +11,13 @@
     "dialog:allow-open",
     "dialog:allow-ask",
     "dialog:allow-message",
-    "sql:default",
-    "sql:allow-load",
-    "sql:allow-execute",
-    "sql:allow-select",
-    "sql:allow-close",
     "fs:allow-mkdir",
     "fs:allow-copy-file",
     "fs:allow-exists",
     "fs:allow-write-text-file",
+    "fs:allow-write-file",
+    "fs:allow-read-dir",
+    "fs:allow-remove",
     "fs:scope-document-recursive",
     "fs:scope-home-recursive"
   ]

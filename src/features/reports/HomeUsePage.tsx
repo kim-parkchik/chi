@@ -29,7 +29,7 @@ interface Draft {
 const COMMON = ["地代家賃", "水道光熱費", "通信費", "車両費", "損害保険料", "減価償却費"];
 
 export const HomeUsePage = () => {
-  const { db, year, accounts, homeUseRates, reloadHomeUse, bump, strict, dataVersion } = useAppContext();
+  const { db, year, accounts, homeUseRates, reloadHomeUse, bump, strict, dataVersion, isClosed } = useAppContext();
   const { lines } = useYearData();
   const toast = useToast();
   const [drafts, setDrafts] = useState<Record<number, Draft>>({});
@@ -65,7 +65,11 @@ export const HomeUsePage = () => {
     const d = draftOf(id);
     const rate = Number(d.rate);
     if (!Number.isInteger(rate) || rate < 0 || rate > 100) return toast("割合は 0〜100 の整数で入れてください", "error");
-    await repo.saveHomeUseRate(db, year, { account_id: id, rate, method: d.method, basis: d.basis });
+    try {
+      await repo.saveHomeUseRate(db, year, { account_id: id, rate, method: d.method, basis: d.basis });
+    } catch (e) {
+      return toast(`保存できませんでした：${String(e)}`, "error");
+    }
     await reloadHomeUse();
     toast(`${year}年からの按分を保存しました`);
   };
@@ -92,12 +96,7 @@ export const HomeUsePage = () => {
       })),
     ];
     try {
-      if (runId) {
-        await repo.updateEntry(db, runId, yearEnd(year), lines, "家事按分の再計算");
-      } else {
-        const id = await repo.createEntry(db, yearEnd(year), lines);
-        await repo.setHomeUseRun(db, year, id);
-      }
+      await repo.saveHomeUseRunEntry(db, year, yearEnd(year), lines, runId ?? null);
       bump();
       toast("家事按分の振替仕訳を作成しました");
     } catch (e) {
@@ -152,7 +151,7 @@ export const HomeUsePage = () => {
                       <input className="input" value={d.basis} onChange={(e) => set(a.id, { basis: e.target.value })} placeholder="例：床面積 20㎡ ／ 60㎡、使用時間 1日8時間 など" maxLength={100} />
                     </td>
                     <td>
-                      <button className="btn ghost small-btn" disabled={!dirty(a.id)} onClick={() => saveRow(a.id)}><Save size={14} /> 保存</button>
+                      <button className="btn ghost small-btn" disabled={isClosed || !dirty(a.id)} onClick={() => saveRow(a.id)}><Save size={14} /> 保存</button>
                     </td>
                   </tr>
                 );
@@ -202,7 +201,7 @@ export const HomeUsePage = () => {
                 12月31日付で「事業主貸 ／ 各科目」の仕訳を1本作ります。年の途中でも作成でき、あとで「作り直す」と同じ仕訳が最新の金額に訂正されます。
               </p>
               <div className="spacer" />
-              <button className="btn primary" onClick={runYearEnd} disabled={privateTotal === 0}>
+              <button className="btn primary" onClick={runYearEnd} disabled={isClosed || privateTotal === 0}>
                 <Wand2 size={16} /> {runId ? "振替仕訳を作り直す" : "振替仕訳を作成する"}
               </button>
             </div>

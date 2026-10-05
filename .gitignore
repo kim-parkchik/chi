@@ -8,9 +8,11 @@ dist
 src-tauri/target
 
 # 帳簿データ（個人の取引情報を含むため GitHub へ上げない）
-*.chi
+*.chik
 *.chib
-*.chi-wal
-*.chi-shm
+*.chi
+*-journal
+*-wal
+*-shm
 
 src-tauri/gen/schemas

@@ -229,7 +229,11 @@ const SubAccountsModal = ({ account, renameLocked, onClose }: { account: Account
     if (!renaming) return;
     const err = repo.validateSub(subAccounts, account.id, renaming.name, renaming.id);
     if (err) return setError(err);
-    await repo.renameSub(db, renaming.id, renaming.name);
+    try {
+      await repo.renameSub(db, renaming.id, renaming.name);
+    } catch (e) {
+      return setError(String(e));
+    }
     await reloadAccounts();
     setRenaming(null);
     setError("");
