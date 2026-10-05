@@ -1,0 +1,16 @@
+node_modules
+dist
+*.log
+.DS_Store
+.idea
+.vscode/*
+!.vscode/extensions.json
+src-tauri/target
+
+# 帳簿データ（個人の取引情報を含むため GitHub へ上げない）
+*.chi
+*.chib
+*.chi-wal
+*.chi-shm
+
+src-tauri/gen/schemas

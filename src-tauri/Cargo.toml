@@ -1,0 +1,21 @@
+[package]
+name = "chi"
+version = "0.1.0"
+description = "chi（ちー） - ローカル完結の個人事業主向け会計ソフト"
+authors = ["you"]
+edition = "2021"
+
+[lib]
+name = "chi_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-sql = { version = "2", features = ["sqlite"] }
+tauri-plugin-dialog = "2"
+tauri-plugin-fs = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
