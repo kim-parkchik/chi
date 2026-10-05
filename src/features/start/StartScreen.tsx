@@ -1,7 +1,7 @@
 import { FilePlus2, FolderOpen, FileClock, X } from "lucide-react";
 import { useId, useState } from "react";
 import { getRecentFiles, removeRecentFile } from "../../db/database";
-import { APP_NAME, APP_READING } from "../../constants/appConfig";
+import { APP_NAME } from "../../constants/appConfig";
 // @ts-ignore
 import pkg from "../../../package.json";
 
@@ -17,7 +17,7 @@ export const Logo = ({ size = 96 }: { size?: number }) => {
       <defs>
         <linearGradient id={grad} x1="0%" y1="0%" x2="100%" y2="100%">
           <stop offset="0%" stopColor="#002D62" />
-          <stop offset="100%" stopColor="#1F6B52" />
+          <stop offset="100%" stopColor="#1D4F91" />
         </linearGradient>
       </defs>
       <rect className="logo-body" x="56" y="56" width="400" height="400" rx="90" fill={`url(#${grad})`} />
@@ -50,7 +50,7 @@ export const StartScreen = ({ onCreate, onOpen, onOpenPath, busy }: Props) => {
     <div className="start">
       <div className="start-card">
         <Logo />
-        <h1 className="start-title">{APP_NAME}<span className="start-reading">{APP_READING}</span></h1>
+        <h1 className="start-title">{APP_NAME}</h1>
         <p className="start-sub">個人事業主のための、手元で完結する帳簿</p>
 
         <div className="start-actions">

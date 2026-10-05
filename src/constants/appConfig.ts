@@ -1,8 +1,6 @@
 /** アプリ全体の設定値 */
 
 export const APP_NAME = "chi";
-/** 読み方 */
-export const APP_READING = "ちー";
 
 /** 書類フォルダ内に作るフォルダ名 */
 export const APP_DIR_NAME = "chi";

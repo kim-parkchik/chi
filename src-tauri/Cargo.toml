@@ -1,7 +1,7 @@
 [package]
 name = "chi"
 version = "0.1.0"
-description = "chi（ちー） - ローカル完結の個人事業主向け会計ソフト"
+description = "chi - ローカル完結の個人事業主向け会計ソフト"
 authors = ["you"]
 edition = "2021"
 
